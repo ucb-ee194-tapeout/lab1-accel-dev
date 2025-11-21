@@ -173,7 +173,7 @@ lazy val chipyard = {
     Seq(
       testchipip, rocketchip, boom, rocketchip_blocks, rocketchip_inclusive_cache,
       icenet, tracegen,
-      constellation, barf, shuttle, rerocc,
+      constellation, barf, shuttle, rerocc, packbitsacc,
     ).map(sbt.Project.projectToRef) ++
     (if (useChisel7) Seq() else Seq(sbt.Project.projectToRef(firrtl2_bridge))) ++
     (if (useChisel7) Seq() else Seq(sbt.Project.projectToRef(dsptools), sbt.Project.projectToRef(rocket_dsp_utils)))
@@ -267,6 +267,12 @@ lazy val mempress = withInitCheck((project in file("generators/mempress")), "mem
   .dependsOn(rocketchip)
   .settings(libraryDependencies ++= rocketLibDeps.value)
   .settings(commonSettings)
+
+lazy val packbitsacc = (project in file("generators/packbits-acc"))
+  .dependsOn(rocketchip)
+  .settings(libraryDependencies ++= rocketLibDeps.value)
+  .settings(commonSettings)
+  .settings(libraryDependencies ++= Seq("edu.berkeley.cs" %% "chiseltest" % chiselTestVersion % "test"))
 
 lazy val barf = withInitCheck((project in file("generators/bar-fetchers")), "bar-fetchers")
   .dependsOn(rocketchip)
