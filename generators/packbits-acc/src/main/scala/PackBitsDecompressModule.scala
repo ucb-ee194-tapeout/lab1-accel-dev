@@ -26,8 +26,9 @@ class PackBitsDecompressModule()(implicit p: Parameters) extends Module {
     // 256-bit Word -> 8-bit Stream
     // We buffer one whole 256-bit word here
     val inDataReg = Reg(UInt(256.W))
+    val lastBeatReg = RegInit(false.B) // is this the last beat of data_stream_in?
     val notdoneProcessingBeat = RegInit(false.B) // inValidReg
-    val bytesProcessed    = RegInit(0.U(6.W)) // Counts 0 to 32 bytes | inCount
+    val bytesProcessed = RegInit(0.U(6.W)) // Counts 0 to 32 bytes | inCount
 
     // Logic to pull data from external input
     io.data_stream_in.ready := !notdoneProcessingBeat // Ready if our internal buffer is empty
@@ -36,6 +37,7 @@ class PackBitsDecompressModule()(implicit p: Parameters) extends Module {
         inDataReg := io.data_stream_in.bits.data
         notdoneProcessingBeat := true.B
         bytesProcessed := 0.U
+        lastBeatReg := io.data_stream_in.bits.last
     }
 
     // Helper to get the current byte (Select byte based on inCount)
@@ -54,10 +56,14 @@ class PackBitsDecompressModule()(implicit p: Parameters) extends Module {
         // val nextCount = inCount + 1.U
     //     inCount := nextCount
         
-    // If we read all 32 bytes (0 to 31), invalidate buffer to fetch next beat
-    when((bytesProcessed + 1.U) === 32.U) {
+    // If we read all 32 bytes (0 to 31), check we didnt' just read last beat, if not, invalidate buffer to fetch next beat
+    when((bytesProcessed + 1.U) === 32.U && !lastBeatReg) {
         notdoneProcessingBeat := false.B
-    }
+    } 
+    // .elsewhen((bytesProcessed + 1.U) === 32.U && lastBeatReg) {
+    //     notdoneProcessingBeat := true.B
+    //     state := sDone
+    // }
     // }
 
     // output
@@ -215,6 +221,7 @@ class PackBitsDecompressModule()(implicit p: Parameters) extends Module {
         // Dead state until Reset. 
         // Logic ensures io.done is high.
         currentInByte.ready := false.B
+        notdoneProcessingBeat := true.B // do not accept reads from data stream if we are done processing
         }
     }
 
