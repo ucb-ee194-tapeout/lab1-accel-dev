@@ -22,12 +22,12 @@ int main(void) {
     // Run Tests
 
     printf("Starting PackBits Decompression Tests...\n");
-    printf("Source Address: %p\n", input_2);
+    printf("Source Address: %p\n", input_1);
 
     asm volatile("fence");
 
     // rs2/length = 256 bits
-    ROCC_INSTRUCTION_SS(0, input_2, 256, 0x1); // Set source address
+    ROCC_INSTRUCTION_SS(0, input_1, 256, 0x1); // Set source address
 
     asm volatile("fence");
 
