@@ -13,6 +13,7 @@ class DMAReadInfo extends Bundle {
 
 class DMAWriteDstInfo extends Bundle {
     val addr = UInt(64.W)
+    // val size = UInt(64.W)
 }
 
 class MemLoaderConsumerBundle extends Bundle {
@@ -23,4 +24,8 @@ class MemLoaderConsumerBundle extends Bundle {
 class LoadInfoBundle extends Bundle {
   val start_byte = UInt(5.W)
   val end_byte = UInt(5.W)
+}
+
+class BufInfoBundle extends Bundle {
+  val len_bytes = UInt(64.W)
 }

@@ -14,8 +14,11 @@ import freechips.rocketchip.tilelink._
 class PackBitsDecompressor(opcodes: OpcodeSet)(implicit p: Parameters) extends LazyRoCC(opcodes = opcodes, nPTWPorts = 2) {
     override lazy val module = new PackBitsDecompressorImpl(this)
 
-    val l2_reader = LazyModule(new L2MemHelper("[packbits_reader]", numOutstandingReqs=8))
+    val l2_reader = LazyModule(new L2MemHelper("[packbits_reader]", numOutstandingReqs = 8))
     tlNode := TLWidthWidget(32) := l2_reader.masterNode
+
+    val l2_writer = LazyModule(new L2MemHelper("[packbits_writer]", numOutstandingReqs = 8))
+    tlNode := TLWidthWidget(32) := l2_writer.masterNode
 }
 
 class PackBitsDecompressorImpl(outer: PackBitsDecompressor)(implicit p: Parameters) extends LazyRoCCModuleImp(outer) with MemoryOpConstants {
@@ -39,7 +42,13 @@ class PackBitsDecompressorImpl(outer: PackBitsDecompressor)(implicit p: Paramete
 
     val packbits_decomp_module = Module(new PackBitsDecompressModule)
     memloader.io.consumer_if <> packbits_decomp_module.io.data_stream_in
-    packbits_decomp_module.io.out.ready := false.B // TESTING, TODO: tie off for now
+    // packbits_decomp_module.io.out.ready := false.B // TESTING, TODO: tie off for now
+
+    val memwriter = Module(new PackBitsMemWriter)
+    outer.l2_writer.module.io.userif <> memwriter.io.l2helperUser
+    memwriter.io.dst_info <> cmd_router.io.dst_info
+    packbits_decomp_module.io.out <> memwriter.io.consumer_if
+    packbits_decomp_module.io.done <> memwriter.io.pack_bits_decompress_done
 
 
 
@@ -50,7 +59,12 @@ class PackBitsDecompressorImpl(outer: PackBitsDecompressor)(implicit p: Paramete
     outer.l2_reader.module.io.sfence <> cmd_router.io.sfence_out
     outer.l2_reader.module.io.status.valid := cmd_router.io.dmem_status_out.valid
     outer.l2_reader.module.io.status.bits := cmd_router.io.dmem_status_out.bits.status
-    io.ptw(1) <> outer.l2_reader.module.io.ptw
+    io.ptw(0) <> outer.l2_reader.module.io.ptw
+
+    outer.l2_writer.module.io.sfence <> cmd_router.io.sfence_out
+    outer.l2_writer.module.io.status.valid := cmd_router.io.dmem_status_out.valid
+    outer.l2_writer.module.io.status.bits := cmd_router.io.dmem_status_out.bits.status
+    io.ptw(1) <> outer.l2_writer.module.io.ptw
 
     io.busy := false.B
 }

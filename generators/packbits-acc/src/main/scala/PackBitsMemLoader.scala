@@ -23,6 +23,8 @@ class PackBitsMemLoader()(implicit p: Parameters) extends Module
 
     val load_info_queue = Module(new Queue(new LoadInfoBundle, 256))
 
+    val buf_info_queue = Module(new Queue(new BufInfoBundle, 16))
+
     val base_addr_bytes = io.src_info.bits.addr
     val base_len = io.src_info.bits.size
     val base_addr_start_index = io.src_info.bits.addr & 0x1F.U
@@ -65,7 +67,7 @@ class PackBitsMemLoader()(implicit p: Parameters) extends Module
     val request_fire = DecoupledHelper(
         io.l2helperUser.req.ready,
         io.src_info.valid,
-        // buf_info_queue.io.enq.ready,
+        buf_info_queue.io.enq.ready,
         load_info_queue.io.enq.ready
     )
 
@@ -86,22 +88,27 @@ class PackBitsMemLoader()(implicit p: Parameters) extends Module
 
     io.src_info.ready := request_fire.fire(io.src_info.valid, addrinc === words_to_load_minus_one)
 
-    // buf_info_queue.io.enq.valid := request_fire.fire(buf_info_queue.io.enq.ready, addrinc === 0.U)
+    buf_info_queue.io.enq.valid := request_fire.fire(buf_info_queue.io.enq.ready, addrinc === 0.U)
 
 
-    // buf_info_queue.io.enq.bits.len_bytes := base_len
+    buf_info_queue.io.enq.bits.len_bytes := base_len
 
     val mem_resp_queue = Module(new Queue(new MemLoaderConsumerBundle, 16))
     io.consumer_if <> mem_resp_queue.io.deq
 
     // response
+    val len_already_consumed = RegInit(0.U(64.W))
+
     val resp_fire = DecoupledHelper(
         io.l2helperUser.resp.valid,
         load_info_queue.io.deq.valid,
-        mem_resp_queue.io.enq.ready
+        mem_resp_queue.io.enq.ready,
+        buf_info_queue.io.deq.valid
     )
 
     load_info_queue.io.deq.ready := resp_fire.fire(load_info_queue.io.deq.valid)
+
+    buf_info_queue.io.deq.ready := resp_fire.fire(buf_info_queue.io.deq.valid) && (len_already_consumed === buf_info_queue.io.deq.bits.len_bytes)
 
     val align_shamt = (load_info_queue.io.deq.bits.start_byte << 3)
     val memresp_bits_shifted = io.l2helperUser.resp.bits.data >> align_shamt
@@ -109,7 +116,17 @@ class PackBitsMemLoader()(implicit p: Parameters) extends Module
     io.l2helperUser.resp.ready := resp_fire.fire(io.l2helperUser.resp.valid)
 
     mem_resp_queue.io.enq.bits.data := memresp_bits_shifted
-    mem_resp_queue.io.enq.bits.last := Mux(addrinc =/= words_to_load_minus_one, false.B, true.B)
+    // mem_resp_queue.io.enq.bits.last := Mux(addrinc =/= words_to_load_minus_one, false.B, true.B)
+    mem_resp_queue.io.enq.bits.last := (len_already_consumed === buf_info_queue.io.deq.bits.len_bytes)
     mem_resp_queue.io.enq.valid := resp_fire.fire(mem_resp_queue.io.enq.ready)
+
+    when (resp_fire.fire) {
+        when (len_already_consumed === buf_info_queue.io.deq.bits.len_bytes) {
+            len_already_consumed := 0.U
+        } .otherwise {
+            len_already_consumed := len_already_consumed + (256 / 8).U
+        }
+    }
+
     
 }

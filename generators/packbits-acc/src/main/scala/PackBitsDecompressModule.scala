@@ -84,16 +84,24 @@ class PackBitsDecompressModule()(implicit p: Parameters) extends Module {
 
     when(byteOutputStreamByte.fire) {
         outBuffer(outCount) := byteOutputStreamByte.bits
-        outCount := outCount + 1.U
+        // outCount := outCount + 1.U
         PackBitsAccLogger.logInfo("[PackBitsDecompressModule] byteOutputStreamByte.fire -- outCount: 0x%x\n", outCount)
 
         // If we just filled the last byte (idx 31 -> count 32), push to queue
-        when(outCount === 32.U) {
+        when((outCount + 1.U) === 32.U) {
             outQueue.io.enq.valid := true.B
+
+            val temp = Wire(Vec(32, UInt(8.W)))
+            temp := outBuffer
+            temp(outCount) := byteOutputStreamByte.bits  // override index 31 with the new value
+            outQueue.io.enq.bits.data := Cat(temp.reverse) // Pack Vec back to UInt
+
             // Reset count after push
             outCount := 0.U
 
             PackBitsAccLogger.logInfo("[PackBitsDecompressModule] Pushing to out queue: 0x%x | last: %x\n", outQueue.io.enq.bits.data, outQueue.io.enq.bits.last)
+        } .otherwise {
+            outCount := outCount + 1.U
         }
     }
 
@@ -137,21 +145,39 @@ class PackBitsDecompressModule()(implicit p: Parameters) extends Module {
             // flushPartial := true.B // Flush any remaining output bytes
             // } 
 
-            // when (bytesProcessed === 31.U && lastBeatReg) {
-            //     seenLastCompressedByte := true.B
+            // when (bytesProcessed >= 31.U && !lastBeatReg) {
+            // when (bytesProcessed >= 32.U && !lastBeatReg) {
+            //     // seenLastCompressedByte := true.B
             //     notdoneProcessingBeat := false.B
-            //     state := sDone
-            // }
+            //     // state := sDone
+            // } 
+            // .elsewhen(!isNegative) {
             when(!isNegative) {
             // Literal Run (0 to 127) -> Copy (Header + 1) bytes
             counter := currentInByte.bits +& 1.U
             bytesProcessed := bytesProcessed + 1.U
-            state   := sLiteral
+
+            // when ((bytesProcessed + 1.U) >= 31.U && !lastBeatReg) {
+            //     notdoneProcessingBeat := false.B
+            //     // when (lastBeatReg) {
+            //     //     seenLastCompressedByte := true.B
+            //     // }
+            // }
+
+            state := sLiteral
             } .otherwise {
             // Replicate Run (-1 to -127) -> Repeat byte (1 - Header) times
             // 2's complement math: (0 - header) + 1
             counter := (0.U - currentInByte.bits) +& 1.U
             bytesProcessed := bytesProcessed + 1.U
+
+            // when ((bytesProcessed + 1.U) >= 31.U && !lastBeatReg) {
+            //     notdoneProcessingBeat := false.B
+            //     // when (lastBeatReg) {
+            //     //     seenLastCompressedByte := true.B
+            //     // }
+            // }
+
             state   := sReadRep
             }
         }
@@ -179,6 +205,14 @@ class PackBitsDecompressModule()(implicit p: Parameters) extends Module {
 
         when(copy_fire.fire()) {
             bytesProcessed := bytesProcessed + 1.U
+
+            // when ((bytesProcessed + 1.U) >= 31.U && !lastBeatReg) {
+            //     notdoneProcessingBeat := false.B
+            //     // when (lastBeatReg) {
+            //     //     seenLastCompressedByte := true.B
+            //     // }
+            // }
+
             counter := counter - 1.U
             when((counter - 1.U) === 0.U) {
                 state := sIdle
@@ -211,6 +245,9 @@ class PackBitsDecompressModule()(implicit p: Parameters) extends Module {
             counter := counter - 1.U
             when((counter - 1.U) === 0.U) {
             bytesProcessed := bytesProcessed + 1.U
+            // when ((bytesProcessed + 1.U) >= 31.U && !lastBeatReg) {
+            //     notdoneProcessingBeat := false.B
+            // }
             state := sIdle
             }
         }
@@ -260,6 +297,12 @@ class PackBitsDecompressModule()(implicit p: Parameters) extends Module {
                 outQueue.io.enq.valid := true.B
                 PackBitsAccLogger.logInfo("[PackBitsDecompressModule] Pushing to out queue: 0x%x | last: %x\n", outQueue.io.enq.bits.data, outQueue.io.enq.bits.last)
     }
+
+    when (bytesProcessed >= 31.U && !lastBeatReg && state === sIdle) {
+                // seenLastCompressedByte := true.B
+                notdoneProcessingBeat := false.B
+                // state := sDone
+    } 
 
     outQueue.io.enq.bits.last := (state === sDone) // disregard for now (TESTING, TODO)
 

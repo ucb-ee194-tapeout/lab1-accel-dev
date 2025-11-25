@@ -27,7 +27,7 @@ class PackBitsCommandRouter()(implicit p: Parameters) extends Module {
 
         val src_info = Decoupled(new DMAReadInfo)
 
-        // val dst_info = Decoupled(new DMAWriteDstInfo)
+        val dst_info = Decoupled(new DMAWriteDstInfo)
 
     })
 
@@ -75,7 +75,20 @@ class PackBitsCommandRouter()(implicit p: Parameters) extends Module {
     src_info_queue.io.enq.bits.size := io.rocc_in.bits.rs2
     src_info_queue.io.enq.valid := src_info_fire.fire(src_info_queue.io.enq.ready)
 
+
+    val dst_info_queue = Module(new Queue(new DMAWriteDstInfo, 4))
+    io.dst_info <> dst_info_queue.io.deq
+
+    val dst_info_fire = DecoupledHelper(
+        io.rocc_in.valid,
+        dst_info_queue.io.enq.ready,
+        current_funct === FUNCT_DST_INFO
+    )
+    dst_info_queue.io.enq.bits.addr := io.rocc_in.bits.rs1
+    // dst_info_queue.io.enq.bits.size := io.rocc_in.bits.rs2
+    dst_info_queue.io.enq.valid := dst_info_fire.fire(dst_info_queue.io.enq.ready)
+
     // https://github.com/ucb-bar/compress-acc/blob/main/src/main/scala/ZstdMatchFinderCommandRouter.scala#L105-L112
 
-    io.rocc_in.ready := sfence_fire.fire(io.rocc_in.valid) || src_info_fire.fire(io.rocc_in.valid)
+    io.rocc_in.ready := sfence_fire.fire(io.rocc_in.valid) || src_info_fire.fire(io.rocc_in.valid) || dst_info_fire.fire(io.rocc_in.valid)
 }
