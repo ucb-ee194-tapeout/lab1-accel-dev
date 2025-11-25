@@ -52,7 +52,7 @@ int main(void) {
         // Check correctness
         if (outbuf[i] != expect_4[i]) {
             printf("Test 4 Failed at byte %d: Expected %02X, Got %02X\n", i, expect_4[i], outbuf[i]);
-            // return -1;
+            return -1;
         }
     }
 
