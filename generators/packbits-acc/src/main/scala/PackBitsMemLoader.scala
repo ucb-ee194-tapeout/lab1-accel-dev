@@ -116,7 +116,6 @@ class PackBitsMemLoader()(implicit p: Parameters) extends Module
     io.l2helperUser.resp.ready := resp_fire.fire(io.l2helperUser.resp.valid)
 
     mem_resp_queue.io.enq.bits.data := memresp_bits_shifted
-    // mem_resp_queue.io.enq.bits.last := Mux(addrinc =/= words_to_load_minus_one, false.B, true.B)
     mem_resp_queue.io.enq.bits.last := (len_already_consumed === buf_info_queue.io.deq.bits.len_bytes)
     mem_resp_queue.io.enq.valid := resp_fire.fire(mem_resp_queue.io.enq.ready)
 
@@ -128,5 +127,4 @@ class PackBitsMemLoader()(implicit p: Parameters) extends Module
         }
     }
 
-    
 }

@@ -26,7 +26,7 @@ class PackBitsDecompressorImpl(outer: PackBitsDecompressor)(implicit p: Paramete
     // accepts & parses incoming RoCC commands
     val cmd_router = Module(new PackBitsCommandRouter)
     cmd_router.io.rocc_in <> io.cmd
-    // io.resp <> cmd_router.io.rocc_out
+    // io.resp <> cmd_router.io.rocc_out // we have no RoCC Response as output for our accelerator
 
     io.mem.req.valid := false.B
     io.mem.s1_kill := false.B
@@ -42,14 +42,13 @@ class PackBitsDecompressorImpl(outer: PackBitsDecompressor)(implicit p: Paramete
 
     val packbits_decomp_module = Module(new PackBitsDecompressModule)
     memloader.io.consumer_if <> packbits_decomp_module.io.data_stream_in
-    // packbits_decomp_module.io.out.ready := false.B // TESTING, TODO: tie off for now
+    // packbits_decomp_module.io.out.ready := false.B // TESTING: tie off for now
 
     val memwriter = Module(new PackBitsMemWriter)
     outer.l2_writer.module.io.userif <> memwriter.io.l2helperUser
     memwriter.io.dst_info <> cmd_router.io.dst_info
     packbits_decomp_module.io.out <> memwriter.io.consumer_if
     packbits_decomp_module.io.done <> memwriter.io.pack_bits_decompress_done
-
 
 
     // DO NOT TOUCH BELOW THIS LINE UNLESS YOU NEED MORE MEMORY
@@ -61,6 +60,7 @@ class PackBitsDecompressorImpl(outer: PackBitsDecompressor)(implicit p: Paramete
     outer.l2_reader.module.io.status.bits := cmd_router.io.dmem_status_out.bits.status
     io.ptw(0) <> outer.l2_reader.module.io.ptw
 
+    // L2 I/F 1: boilerplate, do not touch
     outer.l2_writer.module.io.sfence <> cmd_router.io.sfence_out
     outer.l2_writer.module.io.status.valid := cmd_router.io.dmem_status_out.valid
     outer.l2_writer.module.io.status.bits := cmd_router.io.dmem_status_out.bits.status

@@ -25,8 +25,6 @@ class PackBitsMemWriter()(implicit p: Parameters) extends Module
         val pack_bits_decompress_done = Input(Bool())
     })
 
-    dontTouch(io)
-
     val incoming_writes_Q = Module(new Queue(new MemLoaderConsumerBundle, 4))
     incoming_writes_Q.io.enq <> io.consumer_if
 
@@ -43,32 +41,6 @@ class PackBitsMemWriter()(implicit p: Parameters) extends Module
         dst_info_Q.io.deq.bits.addr)
     }
 
-    // val buf_lens_Q = Module(new Queue(UInt(64.W), 10))
-    // when (buf_lens_Q.io.enq.fire) {
-    //     PackBitsAccLogger.logInfo("[memwriter] enqueued buf len: %d\n", buf_lens_Q.io.enq.bits)
-    // }
-
-    // val no_dummy_buf_lens_Q = Module(new Queue(UInt(64.W), 10))
-
-    // val end_of_buf = incoming_writes_Q.io.deq.bits.last
-    // val account_for_buf_lens_Q = (!end_of_buf) || (end_of_buf && buf_lens_Q.io.enq.ready)
-    
-    // val buf_len_tracker = RegInit(0.U(64.W))
-    // when (incoming_writes_Q.io.deq.fire) {
-    //     when (incoming_writes_Q.io.deq.bits.last) {
-    //         buf_len_tracker := 0.U
-    //     } .otherwise {
-    //         buf_len_tracker := buf_len_tracker +& incoming_writes_Q.io.deq.bits.data
-    //     }
-    // }
-
-    // when (incoming_writes_Q.io.deq.fire) {
-    //     PackBitsAccLogger.logInfo("[memwriter] dat: 0x%x, EOM: %d\n",
-    //     incoming_writes_Q.io.deq.bits.data,
-    //     incoming_writes_Q.io.deq.bits.last
-    //     )
-    // }
-
     val len_already_consumed = RegInit(0.U(64.W))
 
     val mem_write_fire = DecoupledHelper(
@@ -78,7 +50,6 @@ class PackBitsMemWriter()(implicit p: Parameters) extends Module
     )
 
     dst_info_Q.io.deq.ready := mem_write_fire.fire(dst_info_Q.io.deq.valid)
-    // dst_info_Q.io.deq.ready := mem_write_fire.fire(dst_info_Q.io.deq.valid) && (len_already_consumed === dst_info_Q.io.deq.bits.size)
     incoming_writes_Q.io.deq.ready := mem_write_fire.fire(incoming_writes_Q.io.deq.valid)
 
     io.l2helperUser.req.bits.size := log2Ceil(32).U // bytes!
@@ -86,16 +57,7 @@ class PackBitsMemWriter()(implicit p: Parameters) extends Module
     io.l2helperUser.req.bits.data := incoming_writes_Q.io.deq.bits.data
     io.l2helperUser.req.bits.cmd := M_XWR
     
-    io.l2helperUser.req.valid := mem_write_fire.fire(io.l2helperUser.req.ready)
-
-    // when (mem_write_fire.fire()) {
-    //     when (len_already_consumed === dst_info_Q.io.deq.bits.size) {
-    //         len_already_consumed := 0.U
-    //     } .otherwise {
-    //         len_already_consumed := len_already_consumed + (256 / 8).U
-    //     }
-    // }
-    
+    io.l2helperUser.req.valid := mem_write_fire.fire(io.l2helperUser.req.ready)    
     
     io.l2helperUser.resp.ready := true.B
 }

@@ -20,7 +20,7 @@ class PackBitsCommandRouter()(implicit p: Parameters) extends Module {
     val io = IO(new Bundle {
         val rocc_in = Flipped(Decoupled(new RoCCCommand))
 
-        // val rocc_out = Decoupled(new RoCCResponse)
+        // val rocc_out = Decoupled(new RoCCResponse) // our accelerator has no rocc resp, typically this is used for polling the status of an instruction in flight in the accelerator
 
         val sfence_out = Output(Bool())
         val dmem_status_out = Valid(new RoCCCommand)
@@ -85,10 +85,8 @@ class PackBitsCommandRouter()(implicit p: Parameters) extends Module {
         current_funct === FUNCT_DST_INFO
     )
     dst_info_queue.io.enq.bits.addr := io.rocc_in.bits.rs1
-    // dst_info_queue.io.enq.bits.size := io.rocc_in.bits.rs2
     dst_info_queue.io.enq.valid := dst_info_fire.fire(dst_info_queue.io.enq.ready)
 
     // https://github.com/ucb-bar/compress-acc/blob/main/src/main/scala/ZstdMatchFinderCommandRouter.scala#L105-L112
-
     io.rocc_in.ready := sfence_fire.fire(io.rocc_in.valid) || src_info_fire.fire(io.rocc_in.valid) || dst_info_fire.fire(io.rocc_in.valid)
 }
